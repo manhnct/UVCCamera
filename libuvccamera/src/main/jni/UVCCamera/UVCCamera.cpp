@@ -46,7 +46,7 @@
 #include "Parameters.h"
 #include "libuvc_internal.h"
 
-#define	LOCAL_DEBUG 0
+#define	LOCAL_DEBUG 1
 
 //**********************************************************************
 //
