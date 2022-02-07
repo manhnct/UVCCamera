@@ -139,7 +139,46 @@ static void nativeDestroy(JNIEnv *env, jobject thiz,
 }
 
 //======================================================================
-// カメラへ接続
+// 设置帧缓存大小
+static void nativeFrameBufferSize(JNIEnv *env, jobject thiz, jint frameBufferSize) {
+    frame_buffer_size = (int)frameBufferSize;
+}
+// 设置是否丢弃不完整帧
+static void nativeDropIncompleteFrame(JNIEnv *env, jobject thiz, jint dropIncompleteFrame) {
+    drop_incomplete_frame = (int)dropIncompleteFrame;
+}
+
+// 设置是否需要水平镜像处理
+static void nativeHorizontalMirror(JNIEnv *env, jobject thiz,
+	ID_TYPE id_camera, jint horizontalMirror) {
+
+	UVCCamera *camera = reinterpret_cast<UVCCamera *>(id_camera);
+	if (LIKELY(camera)) {
+		return camera->setHorizontalMirror(horizontalMirror);
+	}
+}
+
+// 设置是否需要垂直镜像处理
+static void nativeVerticalMirror(JNIEnv *env, jobject thiz,
+	ID_TYPE id_camera, jint verticalMirror) {
+
+	UVCCamera *camera = reinterpret_cast<UVCCamera *>(id_camera);
+	if (LIKELY(camera)) {
+		return camera->setVerticalMirror(verticalMirror);
+	}
+}
+
+// 设置摄像头自身角度
+static void nativeCameraAngle(JNIEnv *env, jobject thiz,
+	ID_TYPE id_camera, jint cameraAngle) {
+
+	UVCCamera *camera = reinterpret_cast<UVCCamera *>(id_camera);
+	if (LIKELY(camera)) {
+		return camera->setCameraAngle(cameraAngle);
+	}
+}
+
+// 连接相机
 static jint nativeConnect(JNIEnv *env, jobject thiz,
 	ID_TYPE id_camera,
 	jint vid, jint pid, jint fd,
@@ -216,12 +255,12 @@ static jobject nativeGetSupportedSize(JNIEnv *env, jobject thiz,
 //======================================================================
 // プレビュー画面の大きさをセット
 static jint nativeSetPreviewSize(JNIEnv *env, jobject thiz,
-	ID_TYPE id_camera, jint width, jint height, jint min_fps, jint max_fps, jint mode, jfloat bandwidth) {
+	ID_TYPE id_camera, jint width, jint height, jint cameraAngle, jint min_fps, jint max_fps, jint mode, jfloat bandwidth) {
 
 	ENTER();
 	UVCCamera *camera = reinterpret_cast<UVCCamera *>(id_camera);
 	if (LIKELY(camera)) {
-		return camera->setPreviewSize(width, height, min_fps, max_fps, mode, bandwidth);
+		return camera->setPreviewSize(width, height, cameraAngle, min_fps, max_fps, mode, bandwidth);
 	}
 	RETURN(JNI_ERR, jint);
 }

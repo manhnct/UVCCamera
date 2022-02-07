@@ -58,6 +58,10 @@ UVCPreview::UVCPreview(uvc_device_handle_t *devh)
 	requestBandwidth(DEFAULT_BANDWIDTH),
 	frameWidth(DEFAULT_PREVIEW_WIDTH),
 	frameHeight(DEFAULT_PREVIEW_HEIGHT),
+	frameRotationAngle(DEFAULT_FRAME_ROTATION_ANGLE),
+	frameHorizontalMirror(0),
+	frameVerticalMirror(0),
+	rotateImage(NULL),
 	frameBytes(DEFAULT_PREVIEW_WIDTH * DEFAULT_PREVIEW_HEIGHT * 2),	// YUYV
 	frameMode(0),
 	previewBytes(DEFAULT_PREVIEW_WIDTH * DEFAULT_PREVIEW_HEIGHT * PREVIEW_PIXEL_BYTES),
@@ -83,6 +87,9 @@ UVCPreview::UVCPreview(uvc_device_handle_t *devh)
 UVCPreview::~UVCPreview() {
 
 	ENTER();
+	if(rotateImage){
+	    SAFE_DELETE(rotateImage);
+    }
 	if (mPreviewWindow)
 		ANativeWindow_release(mPreviewWindow);
 	mPreviewWindow = NULL;
@@ -112,6 +119,12 @@ uvc_frame_t *UVCPreview::get_frame(size_t data_bytes) {
 	{
 		if (!mFramePool.isEmpty()) {
 			frame = mFramePool.last();
+			if(frame->data_bytes < data_bytes){
+			    mFramePool.put(frame);
+			    frame = NULL;
+			}else{
+			    frame->actual_bytes = data_bytes;
+			}
 		}
 	}
 	pthread_mutex_unlock(&pool_mutex);
@@ -167,7 +180,8 @@ void UVCPreview::clear_pool() {
 
 inline const bool UVCPreview::isRunning() const {return mIsRunning; }
 
-int UVCPreview::setPreviewSize(int width, int height, int min_fps, int max_fps, int mode, float bandwidth) {
+// ??????
+int UVCPreview::setPreviewSize(int width, int height, int cameraAngle, int min_fps, int max_fps, int mode, float bandwidth) {
 	ENTER();
 	
 	int result = 0;
@@ -183,6 +197,13 @@ int UVCPreview::setPreviewSize(int width, int height, int min_fps, int max_fps, 
 		result = uvc_get_stream_ctrl_format_size_fps(mDeviceHandle, &ctrl,
 			!requestMode ? UVC_FRAME_FORMAT_YUYV : UVC_FRAME_FORMAT_MJPEG,
 			requestWidth, requestHeight, requestMinFps, requestMaxFps);
+	}
+
+	// ???????????????????
+	frameRotationAngle = (360 - cameraAngle) % 360;
+	LOGW("frameRotationAngle:%d",frameRotationAngle);
+	if( (frameHorizontalMirror || frameVerticalMirror || frameRotationAngle) && !rotateImage) {
+		rotateImage = new RotateImage();
 	}
 	
 	RETURN(result, int);
@@ -274,12 +295,14 @@ void UVCPreview::callbackPixelFormatChanged() {
 		break;
 	  case PIXEL_FORMAT_YUV20SP:
 		LOGI("PIXEL_FORMAT_YUV20SP:");
-		mFrameCallbackFunc = uvc_yuyv2iyuv420SP;
+		// NV12: YYYYYYYY UVUV   => YUV420SP
+		mFrameCallbackFunc = uvc_yuyv2yuv420SP;
 		callbackPixelBytes = (sz * 3) / 2;
 		break;
 	  case PIXEL_FORMAT_NV21:
 		LOGI("PIXEL_FORMAT_NV21:");
-		mFrameCallbackFunc = uvc_yuyv2yuv420SP;
+	    // NV21: YYYYYYYY VUVU   => YUV420SP
+		mFrameCallbackFunc = uvc_yuyv2iyuv420SP;
 		callbackPixelBytes = (sz * 3) / 2;
 		break;
 	}
@@ -392,7 +415,7 @@ int UVCPreview::stopPreview() {
 //**********************************************************************
 void UVCPreview::uvc_preview_frame_callback(uvc_frame_t *frame, void *vptr_args) {
 	UVCPreview *preview = reinterpret_cast<UVCPreview *>(vptr_args);
-	if UNLIKELY(!preview->isRunning() || !frame || !frame->frame_format || !frame->data || !frame->data_bytes) return;
+	if UNLIKELY(!preview->isRunning() || !frame || !frame->frame_format || !frame->data || !frame->data_bytes || !frame->actual_bytes) return;
 	if (UNLIKELY(
 		((frame->frame_format != UVC_FRAME_FORMAT_MJPEG) && (frame->actual_bytes < preview->frameBytes))
 		|| (frame->width != preview->frameWidth) || (frame->height != preview->frameHeight) )) {
@@ -405,7 +428,8 @@ void UVCPreview::uvc_preview_frame_callback(uvc_frame_t *frame, void *vptr_args)
 		return;
 	}
 	if (LIKELY(preview->isRunning())) {
-		uvc_frame_t *copy = preview->get_frame(frame->data_bytes);
+	    // ???????
+		uvc_frame_t *copy = preview->get_frame(frame->actual_bytes);
 		if (UNLIKELY(!copy)) {
 #if LOCAL_DEBUG
 			LOGE("uvc_callback:unable to allocate duplicate frame!");
@@ -541,6 +565,26 @@ void UVCPreview::do_preview(uvc_stream_ctrl_t *ctrl) {
 					result = uvc_mjpeg2yuyv(frame_mjpeg, frame);   // MJPEG => yuyv
 					recycle_frame(frame_mjpeg);
 					if (LIKELY(!result)) {
+                        // ???????
+                        if(rotateImage){
+                            if(frameRotationAngle==90){
+                                rotateImage->rotate_yuyv_90(frame);
+                            }else if(frameRotationAngle==180){
+                                rotateImage->rotate_yuyv_180(frame);
+                            }else if(frameRotationAngle==270){
+                                rotateImage->rotate_yuyv_270(frame);
+                            }
+                            // ??????
+                            if(frameHorizontalMirror){
+                                rotateImage->horizontal_mirror_yuyv(frame);
+                            }
+                            // ??????
+                            if(frameVerticalMirror){
+                                rotateImage->vertical_mirror_yuyv(frame);
+                            }
+                        }
+
+					    // ????
 						frame = draw_preview_one(frame, &mPreviewWindow, uvc_any2rgbx, 4);
 						addCaptureFrame(frame);
 					} else {

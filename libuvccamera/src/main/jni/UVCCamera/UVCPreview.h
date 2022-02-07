@@ -29,6 +29,7 @@
 #include <pthread.h>
 #include <android/native_window.h>
 #include "objectarray.h"
+#include "RotateImage.h"
 
 #pragma interface
 
@@ -38,6 +39,7 @@
 #define DEFAULT_PREVIEW_FPS_MAX 30
 #define DEFAULT_PREVIEW_MODE 0
 #define DEFAULT_BANDWIDTH 1.0f
+#define DEFAULT_FRAME_ROTATION_ANGLE 0
 
 typedef uvc_error_t (*convFunc_t)(uvc_frame_t *in, uvc_frame_t *out);
 
@@ -63,6 +65,13 @@ private:
 	float requestBandwidth;
 	int frameWidth, frameHeight;
 	int frameMode;
+	// ??????????
+	int frameRotationAngle;
+	// ??????
+	int frameHorizontalMirror;
+	// ??????
+	int frameVerticalMirror;
+	RotateImage *rotateImage;
 	size_t frameBytes;
 	pthread_t preview_thread;
 	pthread_mutex_t preview_mutex;

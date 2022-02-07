@@ -219,6 +219,7 @@ public final class MainActivity extends BaseActivity implements CameraDialog.Cam
 		public void onCheckedChanged(final CompoundButton compoundButton, final boolean isChecked) {
 			switch (compoundButton.getId()) {
 			case R.id.camera_button:
+				Log.d("ttcn88", "ON-OFF button click: "+isChecked);
 				if (isChecked && !mCameraHandler.isOpened()) {
 					CameraDialog.showDialog(MainActivity.this);
 				} else {
@@ -285,6 +286,7 @@ public final class MainActivity extends BaseActivity implements CameraDialog.Cam
 		@Override
 		public void onAttach(final UsbDevice device) {
 			Toast.makeText(MainActivity.this, "USB_DEVICE_ATTACHED", Toast.LENGTH_SHORT).show();
+			startPreview();
 		}
 
 		@Override
@@ -302,6 +304,7 @@ public final class MainActivity extends BaseActivity implements CameraDialog.Cam
 				queueEvent(new Runnable() {
 					@Override
 					public void run() {
+						if (DEBUG) Log.v(TAG, "mCameraHandler.close():");
 						mCameraHandler.close();
 					}
 				}, 0);
